@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>FFWS Predictor Pro - Coach Lipee</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --neon-blue: #00d4ff; 
+            --neon-green: #00ff88; 
+            --bg-dark: #050505; 
+            --card-bg: #111; 
+        }
+        
+        body { 
+            background: var(--bg-dark); 
+            color: #fff; 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; 
+            padding: 0; 
+        }
+        
+        /* Menu Superior */
+        .main-nav { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 15px 25px; 
+            background: #0a0a0a; 
+            border-bottom: 2px solid var(--neon-blue); 
+            box-shadow: 0 0 15px rgba(0,212,255,0.2);
+        }
+        
+        .brand { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: bold; }
+        .brand span { color: var(--neon-blue); }
+        
+        .tabs { display: flex; gap: 15px; }
+        .tab-btn { 
+            background: transparent; border: 1px solid #333; color: #888; 
+            padding: 8px 16px; cursor: pointer; font-family: 'Orbitron', sans-serif; text-transform: uppercase;
+        }
+        .tab-btn.active { border-color: var(--neon-blue); color: var(--neon-blue); font-weight: bold; }
+        
+        .controls button { 
+            padding: 10px 20px; border: none; font-weight: bold; 
+            cursor: pointer; border-radius: 4px; font-family: 'Orbitron', sans-serif; text-transform: uppercase;
+        }
+        .btn-calc { background: var(--neon-green); color: #000; margin-right: 10px; }
+        .btn-download { background: var(--neon-blue); color: #000; }
+
+        /* Estrutura de Páginas */
+        .page { display: none; padding: 20px; }
+        .page.active { display: block; }
+        
+        /* PAGINA 1: Grid de Mapas */
+        .grid-maps { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 12px; 
+        }
+        
+        .map-card { background: var(--card-bg); border: 1px solid #222; position: relative; }
+        .map-header { background: #000; padding: 8px; border-bottom: 2px solid #222; }
+        .map-header input { 
+            background: transparent; border: none; color: #eee; 
+            width: 100%; text-align: center; font-weight: bold; font-size: 11px; text-transform: uppercase; 
+        }
+        
+        .canvas-container { position: relative; line-height: 0; background: #000; }
+        canvas { width: 100%; height: auto; cursor: crosshair; }
+        
+        .upload-area { padding: 8px; background: #161616; text-align: center; border-top: 1px solid #222; display: flex; flex-direction: column; gap: 6px; }
+        .upload-btn { font-size: 10px; color: var(--neon-blue); cursor: pointer; }
+        
+        /* Campo para registrar o Booyah direto na queda */
+        .winner-input {
+            background: #000; border: 1px solid #333; color: var(--neon-green);
+            font-size: 11px; padding: 4px; text-align: center; font-weight: bold; text-transform: uppercase;
+        }
+        .winner-input::placeholder { color: #555; }
+
+        .prob-box { 
+            position: absolute; bottom: 10px; right: 10px; 
+            background: rgba(0, 0, 0, 0.85); padding: 4px 10px; 
+            border: 1px solid var(--neon-green); color: var(--neon-green); 
+            font-weight: bold; border-radius: 4px; font-size: 13px;
+        }
+
+        /* PAGINA 2: Tela Tática */
+        .grid-tactical { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .pane-title { font-family: 'Orbitron', sans-serif; color: var(--neon-blue); margin-top: 0; border-bottom: 1px solid #222; padding-bottom: 8px;}
+        .tactical-box { background: var(--card-bg); padding: 20px; border: 1px solid #222; position: relative; }
+        
+        .filter-area { background: #0a0a0a; padding: 15px; border: 1px solid #222; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; }
+        .filter-area select { background: #111; border: 1px solid #333; color: #fff; padding: 8px; font-weight: bold; }
+        .filter-area button { background: var(--neon-blue); color: #000; border: none; padding: 8px 16px; font-weight: bold; cursor: pointer; }
+
+        .team-input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        .team-input-group input { background: #000; border: 1px solid #333; color: #fff; padding: 8px; flex: 1; }
+        .team-input-group button { background: var(--neon-green); color: #000; border: none; padding: 8px 16px; font-weight: bold; cursor: pointer; }
+
+        .booyah-list { list-style: none; padding: 0; margin: 0; }
+        .booyah-item { 
+            display: flex; justify-content: space-between; align-items: center; padding: 10px; 
+            background: #000; margin-bottom: 6px; border-left: 3px solid var(--neon-green); 
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="main-nav">
+        <div class="brand">COACH LIPEE <span>// PREDICTOR PRO</span></div>
+        <div class="tabs">
+            <button class="tab-btn active" id="btn-tab-reg" onclick="switchPage('reg')">Registro de Safes</button>
+            <button class="tab-btn" id="btn-tab-tac" onclick="switchPage('tac')">Mapa de Calor & Tática</button>
+        </div>
+        <div class="controls">
+            <button class="btn-calc" onclick="calcularGeral()">Analisar Padrões</button>
+            <button class="btn-download" onclick="baixarTudo()">Baixar Relatório</button>
+        </div>
+    </nav>
+
+    <div id="page-reg" class="page active">
+        <div class="grid-maps" id="grid"></div>
+    </div>
+
+    <div id="page-tac" class="page">
+        <div class="filter-area">
+            <label style="font-family: 'Orbitron', sans-serif;">Filtrar Padrão da Queda:</label>
+            <select id="safeFilter"></select>
+            <button onclick="aplicarFiltroTatico()">Simular Cenário de Call</button>
+        </div>
+
+        <div class="grid-tactical">
+            <div class="tactical-box">
+                <h3 class="pane-title">Tendência de Próxima Safe (Heatmap)</h3>
+                <div class="canvas-container">
+                    <canvas id="cvHeatmap" width="500" height="500"></canvas>
+                </div>
+            </div>
+
+            <div class="tactical-box">
+                <h3 class="pane-title">Mapeamento de Equipes (Clique para marcar a Call)</h3>
+                <div class="team-input-group">
+                    <input type="text" id="teamNameInput" placeholder="NOME DO TIME (Ex: LOUD, FLUXO)">
+                    <button onclick="definirTimeAtivo()">Definir Time</button>
+                </div>
+                
+                <div class="canvas-container">
+                    <canvas id="cvTeams" width="500" height="500"></canvas>
+                </div>
+
+                <h3 class="pane-title" style="margin-top:20px; color: var(--neon-green);">Probabilidade de BOOYAH Inteligente</h3>
+                <ul id="booyahStats" class="booyah-list">
+                    <li style="color:#666; padding: 10px;">Nenhum cenário simulado ou time mapeado.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const totalMapas = 12; 
+    
+    // Memória Inteligente
+    let lastX = 200, lastY = 200, lastR = 50;
+    
+    // Dados globais dos mapas
+    let mapas = Array(totalMapas).fill(null).map(() => ({
+        img: null, x: 200, y: 200, r: 50, dragging: false, resizing: false, prob: "0%"
+    }));
+
+    // Dados de mapeamento de equipes e histórico de booyahs salvos na sessão
+    let timesMapeados = []; 
+    let mapaBaseTatico = null;
+    let timeNomeAtual = "";
+
+    function init() {
+        const grid = document.getElementById('grid');
+        for(let i=0; i<totalMapas; i++) {
+            grid.innerHTML += `
+                <div class="map-card">
+                    <div class="map-header">
+                        <input type="text" id="name${i}" value="BERMUDA - RODADA ${Math.floor(i/4)+1} - QUEDA ${i+1}">
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="cv${i}" width="400" height="400"></canvas>
+                        <div class="prob-box" id="prob${i}">0%</div>
+                    </div>
+                    <div class="upload-area">
+                        <input type="text" class="winner-input" id="winner${i}" placeholder="TIME QUE DEU BOOYAH">
+                        <input type="file" class="upload-btn" onchange="loadImg(event, ${i})">
+                    </div>
+                </div>
+            `;
+        }
+        setTimeout(() => { 
+            for(let i=0; i<totalMapas; i++) setupEvents(i); 
+            setupTacticalEvents();
+        }, 100);
+    }
+
+    function switchPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        
+        document.getElementById('page-' + pageId).classList.add('active');
+        document.getElementById('btn-tab-' + pageId).classList.add('active');
+
+        if(pageId === 'tac') popularDropdownFiltro();
+    }
+
+    function loadImg(e, idx) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => { 
+                mapas[idx].img = img; 
+                mapas[idx].x = lastX; 
+                mapas[idx].y = lastY; 
+                mapas[idx].r = lastR;
+                if(!mapaBaseTatico) mapaBaseTatico = img; 
+                desenhar(idx); 
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    }
+
+    function setupEvents(idx) {
+        const cv = document.getElementById(`cv${idx}`);
+        
+        cv.onmousedown = (e) => {
+            const m = mapas[idx];
+            const rect = cv.getBoundingClientRect();
+            const scale = 400 / rect.width;
+            const mouseX = (e.clientX - rect.left) * scale;
+            const mouseY = (e.clientY - rect.top) * scale;
+
+            const dist = Math.hypot(mouseX - m.x, mouseY - m.y);
+            
+            if (Math.abs(dist - m.r) < 20) m.resizing = true;
+            else if (dist < m.r) m.dragging = true;
+        };
+
+        window.onmousemove = (e) => {
+            mapas.forEach((m, i) => {
+                if (!m.dragging && !m.resizing) return;
+                const cv = document.getElementById(`cv${i}`);
+                const rect = cv.getBoundingClientRect();
+                const scale = 400 / rect.width;
+                const mouseX = (e.clientX - rect.left) * scale;
+                const mouseY = (e.clientY - rect.top) * scale;
+
+                if (m.dragging) { 
+                    m.x = mouseX; m.y = mouseY; 
+                    lastX = mouseX; lastY = mouseY; 
+                } else if (m.resizing) { 
+                    m.r = Math.hypot(mouseX - m.x, mouseY - m.y); 
+                    lastR = m.r; 
+                }
+                desenhar(i);
+            });
+        };
+
+        window.onmouseup = () => { mapas.forEach(m => { m.dragging = false; m.resizing = false; }); };
+    }
+
+    function desenhar(idx) {
+        const m = mapas[idx];
+        const cv = document.getElementById(`cv${idx}`);
+        const ctx = cv.getContext('2d');
+        ctx.clearRect(0,0,400,400);
+        
+        if(m.img) ctx.drawImage(m.img, 0, 0, 400, 400);
+        else { ctx.fillStyle = "#111"; ctx.fillRect(0,0,400,400); }
+
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2);
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
+        
+        ctx.fillStyle = varColor('--neon-blue'); ctx.beginPath(); ctx.arc(m.x + m.r, m.y, 6, 0, Math.PI*2); ctx.fill();
+    }
+
+    function calcularGeral() {
+        const ativos = mapas.filter(m => m.img !== null);
+        if(ativos.length === 0) return;
+
+        mapas.forEach((m1, i) => {
+            if(!m1.img) return;
+            let similares = 0;
+            
+            ativos.forEach((m2) => {
+                const distCentro = Math.hypot(m1.x - m2.x, m1.y - m2.y);
+                
+                // REGRA DE MACRO-REGIÃO: Tolerância ampliada para 90
+                // Reconhece safes próximas (como Forge e Ski Lodge) como a mesma região
+                if(distCentro < 90) similares++;
+            });
+            
+            let resultado = Math.round((similares / ativos.length) * 100) + "%";
+            mapas[i].prob = resultado;
+            document.getElementById(`prob${i}`).innerText = resultado;
+        });
+    }
+
+    function popularDropdownFiltro() {
+        const filter = document.getElementById('safeFilter');
+        filter.innerHTML = '';
+        let inseridos = 0;
+        mapas.forEach((m, i) => {
+            if(m.img) {
+                const textName = document.getElementById(`name${i}`).value;
+                const opt = document.createElement('option');
+                opt.value = i; opt.text = textName;
+                filter.add(opt);
+                inseridos++;
+            }
+        });
+        if(inseridos === 0) {
+            filter.innerHTML = '<option value="">Carregue mapas na Página 1</option>';
+        }
+        renderizarMapaDeCalls();
+    }
+
+    function definirTimeAtivo() {
+        const input = document.getElementById('teamNameInput');
+        if(input.value.trim() === "") return;
+        timeNomeAtual = input.value.toUpperCase();
+        alert(`Clique agora no mapa de equipes para marcar a posição da Call da equipe: ${timeNomeAtual}`);
+    }
+
+    function setupTacticalEvents() {
+        const cv = document.getElementById('cvTeams');
+        cv.onclick = (e) => {
+            if(!timeNomeAtual) {
+                alert("Digite o nome do time e clique em 'Definir Time' antes de marcar no mapa.");
+                return;
+            }
+            const rect = cv.getBoundingClientRect();
+            const scale = 500 / rect.width;
+            const x = (e.clientX - rect.left) * scale;
+            const y = (e.clientY - rect.top) * scale;
+
+            timesMapeados = timesMapeados.filter(t => t.nome !== timeNomeAtual);
+            timesMapeados.push({ nome: timeNomeAtual, x, y });
+            timeNomeAtual = "";
+            document.getElementById('teamNameInput').value = "";
+            
+            renderizarMapaDeCalls();
+            aplicarFiltroTatico();
+        };
+    }
+
+    function renderizarMapaDeCalls() {
+        const cv = document.getElementById('cvTeams');
+        const ctx = cv.getContext('2d');
+        ctx.clearRect(0,0,500,500);
+        
+        if(mapaBaseTatico) ctx.drawImage(mapaBaseTatico, 0, 0, 500, 500);
+        else { ctx.fillStyle = "#111"; ctx.fillRect(0,0,500,500); }
+
+        timesMapeados.forEach(t => {
+            ctx.fillStyle = "red"; ctx.beginPath(); ctx.arc(t.x, t.y, 6, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#fff"; ctx.font = "bold 12px Arial"; ctx.textAlign = "center";
+            ctx.fillText(t.nome, t.x, t.y - 10);
+        });
+    }
+
+    // AUTOMAÇÃO CRÍTICA: ESCANEIA OS BOOYAHS AUTOMATICAMENTE POR MACRO-REGIÃO
+    function aplicarFiltroTatico() {
+        const idxTarget = document.getElementById('safeFilter').value;
+        if(idxTarget === "") return;
+        const safeAlvo = mapas[idxTarget];
+
+        // 1. Renderizar o Mapa de Calor à esquerda
+        const cvHeat = document.getElementById('cvHeatmap');
+        const ctxHeat = cvHeat.getContext('2d');
+        ctxHeat.clearRect(0,0,500,500);
+        if(safeAlvo.img) ctxHeat.drawImage(safeAlvo.img, 0, 0, 500, 500);
+        
+        const factor = 500 / 400;
+        const cx = safeAlvo.x * factor;
+        const cy = safeAlvo.y * factor;
+        const cr = safeAlvo.r * factor;
+
+        ctxHeat.beginPath(); ctxHeat.arc(cx, cy, cr, 0, Math.PI*2);
+        ctxHeat.fillStyle = "rgba(0, 255, 136, 0.25)"; ctxHeat.fill();
+        ctxHeat.strokeStyle = varColor('--neon-green'); ctxHeat.lineWidth = 4; ctxHeat.stroke();
+
+        // 2. ESCANEAMENTO AUTOMÁTICO DE BOOYAHS HISTÓRICOS POR MACRO-REGIÃO
+        let historicoBooyahsCalculado = {};
+        
+        mapas.forEach((m2, i) => {
+            if(!m2.img) return;
+            
+            // Verifica se a safe está na mesma Macro-Região (tolerância de 90)
+            const distCentro = Math.hypot(safeAlvo.x - m2.x, safeAlvo.y - m2.y);
+            
+            if(distCentro < 90) {
+                const timeVencedor = document.getElementById(`winner${i}`).value.trim().toUpperCase();
+                if(timeVencedor !== "") {
+                    historicoBooyahsCalculado[timeVencedor] = (historicoBooyahsCalculado[timeVencedor] || 0) + 1;
+                }
+            }
+        });
+
+        // 3. ATUALIZAR LISTA DE PROBABILIDADE TÁTICA
+        const list = document.getElementById('booyahStats');
+        list.innerHTML = "";
+
+        if(timesMapeados.length === 0) {
+            list.innerHTML = '<li style="color:#666; padding: 10px;">Nenhum time marcado no mapa ao lado.</li>';
+            return;
+        }
+
+        timesMapeados.forEach((time) => {
+            const tx = time.x / factor;
+            const ty = time.y / factor;
+            
+            const dist = Math.hypot(tx - safeAlvo.x, ty - safeAlvo.y);
+            let probBooyah = 0;
+
+            if (dist <= safeAlvo.r) {
+                probBooyah = 95 - (dist / safeAlvo.r) * 20;
+            } else {
+                const distDeFora = dist - safeAlvo.r;
+                probBooyah = 55 - (distDeFora * 0.4); 
+            }
+
+            let flagTravaDistancia = false;
+            if (dist > 220) {
+                probBooyah = Math.min(probBooyah, 12);
+                flagTravaDistancia = true; 
+            }
+
+            const qtdBooyahsDetectados = historicoBooyahsCalculado[time.nome] || 0;
+
+            if (qtdBooyahsDetectados > 0) {
+                if (flagTravaDistancia) {
+                    probBooyah = 12 + (qtdBooyahsDetectados * 20); // Destrava bloqueio e aplica peso 20%
+                } else {
+                    probBooyah += (qtdBooyahsDetectados * 20);
+                }
+            }
+
+            probBooyah = Math.max(5, Math.min(99, Math.round(probBooyah)));
+            let badgeColor = probBooyah > 60 ? varColor('--neon-green') : (probBooyah < 25 ? 'red' : 'orange');
+
+            list.innerHTML += `
+                <li class="booyah-item">
+                    <span><b>${time.nome}</b></span>
+                    <span style="font-size: 11px; color: #888;">Detectados ${qtdBooyahsDetectados} Booyahs na Macro-Região</span>
+                    <span style="color: ${badgeColor}; font-weight: bold; font-size: 16px;">${probBooyah}%</span>
+                </li>
+            `;
+        });
+    }
+
+    function varColor(name) {
+        return name === '--neon-blue' ? '#00d4ff' : '#00ff88';
+    }
+
+    async function baixarTudo() {
+        calcularGeral(); 
+        const totalCols = 4;
+        const rows = Math.ceil(totalMapas / totalCols);
+        const cardW = 400;
+        const cardH = 470;
+
+        const masterCanvas = document.createElement('canvas');
+        masterCanvas.width = totalCols * cardW;
+        masterCanvas.height = rows * cardH;
+        const ctx = masterCanvas.getContext('2d');
+
+        ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, masterCanvas.width, masterCanvas.height);
+
+        for(let i=0; i<totalMapas; i++) {
+            const col = i % totalCols; const row = Math.floor(i / totalCols);
+            const x = col * cardW; const y = row * cardH;
+
+            ctx.fillStyle = "#000"; ctx.fillRect(x, y, cardW, 40);
+            ctx.fillStyle = "#eee"; ctx.font = "bold 15px Arial"; ctx.textAlign = "center";
+            const mapName = document.getElementById(`name${i}`).value;
+            ctx.fillText(mapName, x + cardW/2, y + 25);
+
+            const srcCanvas = document.getElementById(`cv${i}`);
+            ctx.drawImage(srcCanvas, x, y + 40, cardW, cardW);
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(x + cardW - 75, y + cardH - 45, 65, 30);
+            ctx.strokeStyle = "#00ff88"; ctx.strokeRect(x + cardW - 75, y + cardH - 45, 65, 30);
+            ctx.fillStyle = "#00ff88"; ctx.font = "bold 16px Arial";
+            ctx.fillText(mapas[i].prob, x + cardW - 42, y + cardH - 24);
+        }
+
+        const link = document.createElement('a');
+        link.download = 'relatorio-tatico-ffws.png';
+        link.href = masterCanvas.toDataURL();
+        link.click();
+    }
+
+    init();
+</script>
+</body>
+</html>
