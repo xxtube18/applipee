@@ -10,6 +10,7 @@
             --neon-green: #00ff88; 
             --bg-dark: #050505; 
             --card-bg: #111; 
+            --neon-orange: #ff9900;
         }
         
         body { 
@@ -25,28 +26,35 @@
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
-            padding: 15px 25px; 
+            padding: 12px 20px; 
             background: #0a0a0a; 
             border-bottom: 2px solid var(--neon-blue); 
             box-shadow: 0 0 15px rgba(0,212,255,0.2);
+            flex-wrap: wrap;
+            gap: 10px;
         }
         
-        .brand { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: bold; }
+        .brand { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: bold; }
         .brand span { color: var(--neon-blue); }
         
-        .tabs { display: flex; gap: 15px; }
+        .tabs { display: flex; gap: 10px; }
         .tab-btn { 
             background: transparent; border: 1px solid #333; color: #888; 
-            padding: 8px 16px; cursor: pointer; font-family: 'Orbitron', sans-serif; text-transform: uppercase;
+            padding: 8px 12px; cursor: pointer; font-family: 'Orbitron', sans-serif; text-transform: uppercase; font-size: 12px;
         }
         .tab-btn.active { border-color: var(--neon-blue); color: var(--neon-blue); font-weight: bold; }
         
-        .controls button { 
-            padding: 10px 20px; border: none; font-weight: bold; 
+        .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+        .controls button, .controls label { 
+            padding: 8px 12px; border: none; font-weight: bold; font-size: 11px;
             cursor: pointer; border-radius: 4px; font-family: 'Orbitron', sans-serif; text-transform: uppercase;
+            display: inline-block; text-align: center;
         }
-        .btn-calc { background: var(--neon-green); color: #000; margin-right: 10px; }
+        .btn-calc { background: var(--neon-green); color: #000; }
         .btn-download { background: var(--neon-blue); color: #000; }
+        .btn-save { background: var(--neon-orange); color: #000; }
+        .btn-load { background: #444; color: #fff; border: 1px solid #666 !important; }
+        .btn-load:hover { background: #555; }
 
         /* Estrutura de Páginas */
         .page { display: none; padding: 20px; }
@@ -72,7 +80,6 @@
         .upload-area { padding: 8px; background: #161616; text-align: center; border-top: 1px solid #222; display: flex; flex-direction: column; gap: 6px; }
         .upload-btn { font-size: 10px; color: var(--neon-blue); cursor: pointer; }
         
-        /* Campo para registrar o Booyah direto na queda */
         .winner-input {
             background: #000; border: 1px solid #333; color: var(--neon-green);
             font-size: 11px; padding: 4px; text-align: center; font-weight: bold; text-transform: uppercase;
@@ -115,8 +122,13 @@
             <button class="tab-btn" id="btn-tab-tac" onclick="switchPage('tac')">Mapa de Calor & Tática</button>
         </div>
         <div class="controls">
+            <button class="btn-save" onclick="salvarProjeto()">💾 Salvar Dados</button>
+            <label class="btn-load">
+                📂 Carregar Dados
+                <input type="file" id="uploadData" accept=".json" style="display:none" onchange="carregarProjeto(event)">
+            </label>
             <button class="btn-calc" onclick="calcularGeral()">Analisar Padrões</button>
-            <button class="btn-download" onclick="baixarTudo()">Baixar Relatório</button>
+            <button class="btn-download" onclick="baixarTudo()">Baixar Imagem</button>
         </div>
     </nav>
 
@@ -160,22 +172,20 @@
 
 <script>
     const totalMapas = 12; 
-    
-    // Memória Inteligente
     let lastX = 200, lastY = 200, lastR = 50;
     
-    // Dados globais dos mapas
+    // O array agora guarda também a string base64 da imagem para podermos salvar o projeto
     let mapas = Array(totalMapas).fill(null).map(() => ({
-        img: null, x: 200, y: 200, r: 50, dragging: false, resizing: false, prob: "0%"
+        img: null, base64: null, x: 200, y: 200, r: 50, dragging: false, resizing: false, prob: "0%"
     }));
 
-    // Dados de mapeamento de equipes e histórico de booyahs salvos na sessão
     let timesMapeados = []; 
     let mapaBaseTatico = null;
     let timeNomeAtual = "";
 
     function init() {
         const grid = document.getElementById('grid');
+        grid.innerHTML = '';
         for(let i=0; i<totalMapas; i++) {
             grid.innerHTML += `
                 <div class="map-card">
@@ -188,13 +198,16 @@
                     </div>
                     <div class="upload-area">
                         <input type="text" class="winner-input" id="winner${i}" placeholder="TIME QUE DEU BOOYAH">
-                        <input type="file" class="upload-btn" onchange="loadImg(event, ${i})">
+                        <input type="file" class="upload-btn" accept="image/*" onchange="loadImg(event, ${i})">
                     </div>
                 </div>
             `;
         }
         setTimeout(() => { 
-            for(let i=0; i<totalMapas; i++) setupEvents(i); 
+            for(let i=0; i<totalMapas; i++) {
+                setupEvents(i); 
+                desenhar(i);
+            }
             setupTacticalEvents();
         }, 100);
     }
@@ -210,20 +223,24 @@
     }
 
     function loadImg(e, idx) {
+        const file = e.target.files[0];
+        if(!file) return;
         const reader = new FileReader();
         reader.onload = (event) => {
+            const resultBase64 = event.target.result;
             const img = new Image();
             img.onload = () => { 
                 mapas[idx].img = img; 
+                mapas[idx].base64 = resultBase64; // Salva para exportação
                 mapas[idx].x = lastX; 
                 mapas[idx].y = lastY; 
                 mapas[idx].r = lastR;
                 if(!mapaBaseTatico) mapaBaseTatico = img; 
                 desenhar(idx); 
             };
-            img.src = event.target.result;
+            img.src = resultBase64;
         };
-        reader.readAsDataURL(e.target.files[0]);
+        reader.readAsDataURL(file);
     }
 
     function setupEvents(idx) {
@@ -237,7 +254,6 @@
             const mouseY = (e.clientY - rect.top) * scale;
 
             const dist = Math.hypot(mouseX - m.x, mouseY - m.y);
-            
             if (Math.abs(dist - m.r) < 20) m.resizing = true;
             else if (dist < m.r) m.dragging = true;
         };
@@ -268,6 +284,7 @@
     function desenhar(idx) {
         const m = mapas[idx];
         const cv = document.getElementById(`cv${idx}`);
+        if(!cv) return;
         const ctx = cv.getContext('2d');
         ctx.clearRect(0,0,400,400);
         
@@ -287,12 +304,9 @@
         mapas.forEach((m1, i) => {
             if(!m1.img) return;
             let similares = 0;
-            
             ativos.forEach((m2) => {
                 const distCentro = Math.hypot(m1.x - m2.x, m1.y - m2.y);
-                
-                // REGRA DE MACRO-REGIÃO: Tolerância ampliada para 90
-                // Reconhece safes próximas (como Forge e Ski Lodge) como a mesma região
+                // Regra de Macro-Região
                 if(distCentro < 90) similares++;
             });
             
@@ -365,13 +379,11 @@
         });
     }
 
-    // AUTOMAÇÃO CRÍTICA: ESCANEIA OS BOOYAHS AUTOMATICAMENTE POR MACRO-REGIÃO
     function aplicarFiltroTatico() {
         const idxTarget = document.getElementById('safeFilter').value;
         if(idxTarget === "") return;
         const safeAlvo = mapas[idxTarget];
 
-        // 1. Renderizar o Mapa de Calor à esquerda
         const cvHeat = document.getElementById('cvHeatmap');
         const ctxHeat = cvHeat.getContext('2d');
         ctxHeat.clearRect(0,0,500,500);
@@ -386,15 +398,11 @@
         ctxHeat.fillStyle = "rgba(0, 255, 136, 0.25)"; ctxHeat.fill();
         ctxHeat.strokeStyle = varColor('--neon-green'); ctxHeat.lineWidth = 4; ctxHeat.stroke();
 
-        // 2. ESCANEAMENTO AUTOMÁTICO DE BOOYAHS HISTÓRICOS POR MACRO-REGIÃO
         let historicoBooyahsCalculado = {};
         
         mapas.forEach((m2, i) => {
             if(!m2.img) return;
-            
-            // Verifica se a safe está na mesma Macro-Região (tolerância de 90)
             const distCentro = Math.hypot(safeAlvo.x - m2.x, safeAlvo.y - m2.y);
-            
             if(distCentro < 90) {
                 const timeVencedor = document.getElementById(`winner${i}`).value.trim().toUpperCase();
                 if(timeVencedor !== "") {
@@ -403,7 +411,6 @@
             }
         });
 
-        // 3. ATUALIZAR LISTA DE PROBABILIDADE TÁTICA
         const list = document.getElementById('booyahStats');
         list.innerHTML = "";
 
@@ -415,31 +422,20 @@
         timesMapeados.forEach((time) => {
             const tx = time.x / factor;
             const ty = time.y / factor;
-            
             const dist = Math.hypot(tx - safeAlvo.x, ty - safeAlvo.y);
             let probBooyah = 0;
 
-            if (dist <= safeAlvo.r) {
-                probBooyah = 95 - (dist / safeAlvo.r) * 20;
-            } else {
-                const distDeFora = dist - safeAlvo.r;
-                probBooyah = 55 - (distDeFora * 0.4); 
-            }
+            if (dist <= safeAlvo.r) { probBooyah = 95 - (dist / safeAlvo.r) * 20; } 
+            else { probBooyah = 55 - ((dist - safeAlvo.r) * 0.4); }
 
             let flagTravaDistancia = false;
-            if (dist > 220) {
-                probBooyah = Math.min(probBooyah, 12);
-                flagTravaDistancia = true; 
-            }
+            if (dist > 220) { probBooyah = Math.min(probBooyah, 12); flagTravaDistancia = true; }
 
             const qtdBooyahsDetectados = historicoBooyahsCalculado[time.nome] || 0;
 
             if (qtdBooyahsDetectados > 0) {
-                if (flagTravaDistancia) {
-                    probBooyah = 12 + (qtdBooyahsDetectados * 20); // Destrava bloqueio e aplica peso 20%
-                } else {
-                    probBooyah += (qtdBooyahsDetectados * 20);
-                }
+                if (flagTravaDistancia) probBooyah = 12 + (qtdBooyahsDetectados * 20); 
+                else probBooyah += (qtdBooyahsDetectados * 20);
             }
 
             probBooyah = Math.max(5, Math.min(99, Math.round(probBooyah)));
@@ -455,8 +451,77 @@
         });
     }
 
-    function varColor(name) {
-        return name === '--neon-blue' ? '#00d4ff' : '#00ff88';
+    function varColor(name) { return name === '--neon-blue' ? '#00d4ff' : '#00ff88'; }
+
+    // ==========================================
+    // SISTEMA DE EXPORTAÇÃO E IMPORTAÇÃO DE DADOS JSON
+    // ==========================================
+    function salvarProjeto() {
+        const data = { nomes: [], vencedores: [], mapasData: [], times: timesMapeados };
+        
+        for(let i=0; i<totalMapas; i++) {
+            data.nomes.push(document.getElementById(`name${i}`).value);
+            data.vencedores.push(document.getElementById(`winner${i}`).value);
+            data.mapasData.push({
+                x: mapas[i].x, y: mapas[i].y, r: mapas[i].r, prob: mapas[i].prob, base64: mapas[i].base64
+            });
+        }
+
+        const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'dados-taticos-lipee.json';
+        link.click();
+    }
+
+    function carregarProjeto(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                timesMapeados = data.times || [];
+                
+                for(let i=0; i<totalMapas; i++) {
+                    document.getElementById(`name${i}`).value = data.nomes[i] || "";
+                    document.getElementById(`winner${i}`).value = data.vencedores[i] || "";
+                    document.getElementById(`prob${i}`).innerText = data.mapasData[i].prob || "0%";
+                    
+                    mapas[i].x = data.mapasData[i].x;
+                    mapas[i].y = data.mapasData[i].y;
+                    mapas[i].r = data.mapasData[i].r;
+                    mapas[i].prob = data.mapasData[i].prob;
+                    mapas[i].base64 = data.mapasData[i].base64;
+
+                    if(mapas[i].base64) {
+                        const img = new Image();
+                        img.onload = () => {
+                            mapas[i].img = img;
+                            if(!mapaBaseTatico) mapaBaseTatico = img;
+                            desenhar(i);
+                        };
+                        img.src = mapas[i].base64;
+                    } else {
+                        mapas[i].img = null;
+                        desenhar(i);
+                    }
+                }
+
+                // Reseta a visualização
+                setTimeout(() => {
+                    calcularGeral();
+                    popularDropdownFiltro();
+                    renderizarMapaDeCalls();
+                    alert("Dados carregados com sucesso!");
+                }, 500);
+
+            } catch(error) {
+                alert("Erro ao carregar o arquivo. Verifique se é um projeto válido (.json).");
+            }
+        };
+        reader.readAsText(file);
     }
 
     async function baixarTudo() {
@@ -479,8 +544,7 @@
 
             ctx.fillStyle = "#000"; ctx.fillRect(x, y, cardW, 40);
             ctx.fillStyle = "#eee"; ctx.font = "bold 15px Arial"; ctx.textAlign = "center";
-            const mapName = document.getElementById(`name${i}`).value;
-            ctx.fillText(mapName, x + cardW/2, y + 25);
+            ctx.fillText(document.getElementById(`name${i}`).value, x + cardW/2, y + 25);
 
             const srcCanvas = document.getElementById(`cv${i}`);
             ctx.drawImage(srcCanvas, x, y + 40, cardW, cardW);
