@@ -13,30 +13,28 @@
             --neon-orange: #ff9900;
         }
         
-        body { 
-            background: var(--bg-dark); 
-            color: #fff; 
-            font-family: 'Inter', sans-serif; 
-            margin: 0; 
-            padding: 0; 
-        }
+        body { background: var(--bg-dark); color: #fff; font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         
         /* Menu Superior */
         .main-nav { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 12px 20px; 
-            background: #0a0a0a; 
-            border-bottom: 2px solid var(--neon-blue); 
-            box-shadow: 0 0 15px rgba(0,212,255,0.2);
-            flex-wrap: wrap;
-            gap: 10px;
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 12px 20px; background: #0a0a0a; border-bottom: 2px solid var(--neon-blue); 
+            box-shadow: 0 0 15px rgba(0,212,255,0.2); flex-wrap: wrap; gap: 10px;
         }
         
         .brand { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: bold; }
         .brand span { color: var(--neon-blue); }
         
+        /* SELETOR DE MAPAS (NOVO) */
+        .workspace-selector {
+            display: flex; align-items: center; gap: 10px; background: #111; 
+            padding: 5px 15px; border: 1px solid #333; border-radius: 4px;
+        }
+        .workspace-selector select {
+            background: #000; color: var(--neon-green); border: 1px solid var(--neon-green);
+            padding: 5px 10px; font-weight: bold; font-family: 'Orbitron', sans-serif; cursor: pointer;
+        }
+
         .tabs { display: flex; gap: 10px; }
         .tab-btn { 
             background: transparent; border: 1px solid #333; color: #888; 
@@ -61,11 +59,7 @@
         .page.active { display: block; }
         
         /* PAGINA 1: Grid de Mapas */
-        .grid-maps { 
-            display: grid; 
-            grid-template-columns: repeat(4, 1fr); 
-            gap: 12px; 
-        }
+        .grid-maps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
         
         .map-card { background: var(--card-bg); border: 1px solid #222; position: relative; }
         .map-header { background: #000; padding: 8px; border-bottom: 2px solid #222; }
@@ -117,6 +111,20 @@
 
     <nav class="main-nav">
         <div class="brand">COACH LIPEE <span>// PREDICTOR PRO</span></div>
+        
+        <!-- NOVO SISTEMA DE ABAS POR MAPA -->
+        <div class="workspace-selector">
+            <span style="font-family: 'Orbitron', sans-serif; font-size: 10px; color:#888;">ABA ATUAL:</span>
+            <select id="workspaceSelect" onchange="changeWorkspace()">
+                <option value="BERM">BERM (Bermuda)</option>
+                <option value="PURG">PURG (Purgatório)</option>
+                <option value="ALP">ALP (Alpine)</option>
+                <option value="SOL">SOL (Sol)</option>
+                <option value="NV">NV (Nova Terra)</option>
+                <option value="KAL">KAL (Kalahari)</option>
+            </select>
+        </div>
+
         <div class="tabs">
             <button class="tab-btn active" id="btn-tab-reg" onclick="switchPage('reg')">Registro de Safes</button>
             <button class="tab-btn" id="btn-tab-tac" onclick="switchPage('tac')">Mapa de Calor & Tática</button>
@@ -132,10 +140,12 @@
         </div>
     </nav>
 
+    <!-- ABA 1: REGISTRO DE SAFES -->
     <div id="page-reg" class="page active">
         <div class="grid-maps" id="grid"></div>
     </div>
 
+    <!-- ABA 2: MAPA DE CALOR E MAPEAMENTO DE CALLS -->
     <div id="page-tac" class="page">
         <div class="filter-area">
             <label style="font-family: 'Orbitron', sans-serif;">Filtrar Padrão da Queda:</label>
@@ -172,16 +182,39 @@
 
 <script>
     const totalMapas = 12; 
-    let lastX = 200, lastY = 200, lastR = 50;
     
-    // O array agora guarda também a string base64 da imagem para podermos salvar o projeto
-    let mapas = Array(totalMapas).fill(null).map(() => ({
-        img: null, base64: null, x: 200, y: 200, r: 50, dragging: false, resizing: false, prob: "0%"
-    }));
+    // ==========================================
+    // SISTEMA DE GERENCIAMENTO DE MAPAS (WORKSPACES)
+    // ==========================================
+    const mapKeys = ['BERM', 'PURG', 'ALP', 'SOL', 'NV', 'KAL'];
+    let activeWorkspace = 'BERM';
+    let workspaces = {};
 
-    let timesMapeados = []; 
-    let mapaBaseTatico = null;
+    // Inicia os espaços em branco para todos os mapas
+    mapKeys.forEach(key => {
+        workspaces[key] = {
+            lastX: 200, lastY: 200, lastR: 50,
+            timesMapeados: [],
+            mapas: Array(totalMapas).fill(null).map((_, i) => ({
+                img: null, base64: null, x: 200, y: 200, r: 50, dragging: false, resizing: false, 
+                prob: "0%", title: `${key} - QUEDA ${i+1}`, winner: ""
+            }))
+        };
+    });
+
+    // Variáveis "Ponteiro" que sempre olham para o mapa ativo atual
+    let mapas = workspaces[activeWorkspace].mapas;
+    let timesMapeados = workspaces[activeWorkspace].timesMapeados;
+    let lastX = workspaces[activeWorkspace].lastX;
+    let lastY = workspaces[activeWorkspace].lastY;
+    let lastR = workspaces[activeWorkspace].lastR;
     let timeNomeAtual = "";
+
+    // Retorna a imagem base do mapa ativo atual para usar no tático
+    function getMapaBaseTatico() {
+        const mapaComImg = mapas.find(m => m.img !== null);
+        return mapaComImg ? mapaComImg.img : null;
+    }
 
     function init() {
         const grid = document.getElementById('grid');
@@ -190,7 +223,7 @@
             grid.innerHTML += `
                 <div class="map-card">
                     <div class="map-header">
-                        <input type="text" id="name${i}" value="BERMUDA - RODADA ${Math.floor(i/4)+1} - QUEDA ${i+1}">
+                        <input type="text" id="name${i}" value="${mapas[i].title}">
                     </div>
                     <div class="canvas-container">
                         <canvas id="cv${i}" width="400" height="400"></canvas>
@@ -204,21 +237,68 @@
             `;
         }
         setTimeout(() => { 
-            for(let i=0; i<totalMapas; i++) {
-                setupEvents(i); 
-                desenhar(i);
-            }
+            for(let i=0; i<totalMapas; i++) { setupEvents(i); desenhar(i); }
             setupTacticalEvents();
         }, 100);
     }
 
+    // Função que salva os inputs da tela atual antes de trocar de aba de mapa
+    function saveCurrentToWorkspace() {
+        for(let i=0; i<totalMapas; i++) {
+            const nameEl = document.getElementById(`name${i}`);
+            const winEl = document.getElementById(`winner${i}`);
+            if(nameEl) workspaces[activeWorkspace].mapas[i].title = nameEl.value;
+            if(winEl) workspaces[activeWorkspace].mapas[i].winner = winEl.value;
+        }
+        workspaces[activeWorkspace].lastX = lastX;
+        workspaces[activeWorkspace].lastY = lastY;
+        workspaces[activeWorkspace].lastR = lastR;
+        workspaces[activeWorkspace].timesMapeados = timesMapeados;
+    }
+
+    // Função executada quando você muda o dropdown (Ex: Bermuda -> Purgatório)
+    function changeWorkspace() {
+        saveCurrentToWorkspace(); // Salva o estado do mapa atual
+        activeWorkspace = document.getElementById('workspaceSelect').value;
+        
+        // Aponta as variáveis para a nova aba
+        mapas = workspaces[activeWorkspace].mapas;
+        timesMapeados = workspaces[activeWorkspace].timesMapeados;
+        lastX = workspaces[activeWorkspace].lastX;
+        lastY = workspaces[activeWorkspace].lastY;
+        lastR = workspaces[activeWorkspace].lastR;
+
+        // Atualiza a tela com os dados da nova aba
+        for(let i=0; i<totalMapas; i++) {
+            document.getElementById(`name${i}`).value = mapas[i].title;
+            document.getElementById(`winner${i}`).value = mapas[i].winner;
+            document.getElementById(`prob${i}`).innerText = mapas[i].prob;
+            
+            // Recarrega as imagens se existirem
+            if(mapas[i].base64 && !mapas[i].img) {
+                const img = new Image();
+                img.onload = () => { mapas[i].img = img; desenhar(i); };
+                img.src = mapas[i].base64;
+            } else {
+                desenhar(i);
+            }
+        }
+        calcularGeral();
+        
+        if (document.getElementById('page-tac').classList.contains('active')) {
+            popularDropdownFiltro();
+            renderizarMapaDeCalls();
+        }
+    }
+
+    // ==========================================
+    // LÓGICA PRINCIPAL (Círculos, Upload, Etc)
+    // ==========================================
     function switchPage(pageId) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        
         document.getElementById('page-' + pageId).classList.add('active');
         document.getElementById('btn-tab-' + pageId).classList.add('active');
-
         if(pageId === 'tac') popularDropdownFiltro();
     }
 
@@ -231,11 +311,8 @@
             const img = new Image();
             img.onload = () => { 
                 mapas[idx].img = img; 
-                mapas[idx].base64 = resultBase64; // Salva para exportação
-                mapas[idx].x = lastX; 
-                mapas[idx].y = lastY; 
-                mapas[idx].r = lastR;
-                if(!mapaBaseTatico) mapaBaseTatico = img; 
+                mapas[idx].base64 = resultBase64; 
+                mapas[idx].x = lastX; mapas[idx].y = lastY; mapas[idx].r = lastR;
                 desenhar(idx); 
             };
             img.src = resultBase64;
@@ -245,7 +322,6 @@
 
     function setupEvents(idx) {
         const cv = document.getElementById(`cv${idx}`);
-        
         cv.onmousedown = (e) => {
             const m = mapas[idx];
             const rect = cv.getBoundingClientRect();
@@ -257,7 +333,6 @@
             if (Math.abs(dist - m.r) < 20) m.resizing = true;
             else if (dist < m.r) m.dragging = true;
         };
-
         window.onmousemove = (e) => {
             mapas.forEach((m, i) => {
                 if (!m.dragging && !m.resizing) return;
@@ -268,16 +343,13 @@
                 const mouseY = (e.clientY - rect.top) * scale;
 
                 if (m.dragging) { 
-                    m.x = mouseX; m.y = mouseY; 
-                    lastX = mouseX; lastY = mouseY; 
+                    m.x = mouseX; m.y = mouseY; lastX = mouseX; lastY = mouseY; 
                 } else if (m.resizing) { 
-                    m.r = Math.hypot(mouseX - m.x, mouseY - m.y); 
-                    lastR = m.r; 
+                    m.r = Math.hypot(mouseX - m.x, mouseY - m.y); lastR = m.r; 
                 }
                 desenhar(i);
             });
         };
-
         window.onmouseup = () => { mapas.forEach(m => { m.dragging = false; m.resizing = false; }); };
     }
 
@@ -306,16 +378,17 @@
             let similares = 0;
             ativos.forEach((m2) => {
                 const distCentro = Math.hypot(m1.x - m2.x, m1.y - m2.y);
-                // Regra de Macro-Região
-                if(distCentro < 90) similares++;
+                if(distCentro < 90) similares++; // Regra da Macro-Região
             });
-            
             let resultado = Math.round((similares / ativos.length) * 100) + "%";
             mapas[i].prob = resultado;
             document.getElementById(`prob${i}`).innerText = resultado;
         });
     }
 
+    // ==========================================
+    // LÓGICA DA TELA TÁTICA E BOOYAH
+    // ==========================================
     function popularDropdownFiltro() {
         const filter = document.getElementById('safeFilter');
         filter.innerHTML = '';
@@ -330,7 +403,7 @@
             }
         });
         if(inseridos === 0) {
-            filter.innerHTML = '<option value="">Carregue mapas na Página 1</option>';
+            filter.innerHTML = '<option value="">Carregue mapas na aba atual</option>';
         }
         renderizarMapaDeCalls();
     }
@@ -345,17 +418,12 @@
     function setupTacticalEvents() {
         const cv = document.getElementById('cvTeams');
         cv.onclick = (e) => {
-            if(!timeNomeAtual) {
-                alert("Digite o nome do time e clique em 'Definir Time' antes de marcar no mapa.");
-                return;
-            }
+            if(!timeNomeAtual) { alert("Digite o nome do time antes de marcar."); return; }
             const rect = cv.getBoundingClientRect();
             const scale = 500 / rect.width;
-            const x = (e.clientX - rect.left) * scale;
-            const y = (e.clientY - rect.top) * scale;
-
+            
             timesMapeados = timesMapeados.filter(t => t.nome !== timeNomeAtual);
-            timesMapeados.push({ nome: timeNomeAtual, x, y });
+            timesMapeados.push({ nome: timeNomeAtual, x: (e.clientX - rect.left)*scale, y: (e.clientY - rect.top)*scale });
             timeNomeAtual = "";
             document.getElementById('teamNameInput').value = "";
             
@@ -369,7 +437,8 @@
         const ctx = cv.getContext('2d');
         ctx.clearRect(0,0,500,500);
         
-        if(mapaBaseTatico) ctx.drawImage(mapaBaseTatico, 0, 0, 500, 500);
+        let imgBase = getMapaBaseTatico();
+        if(imgBase) ctx.drawImage(imgBase, 0, 0, 500, 500);
         else { ctx.fillStyle = "#111"; ctx.fillRect(0,0,500,500); }
 
         timesMapeados.forEach(t => {
@@ -390,9 +459,7 @@
         if(safeAlvo.img) ctxHeat.drawImage(safeAlvo.img, 0, 0, 500, 500);
         
         const factor = 500 / 400;
-        const cx = safeAlvo.x * factor;
-        const cy = safeAlvo.y * factor;
-        const cr = safeAlvo.r * factor;
+        const cx = safeAlvo.x * factor; const cy = safeAlvo.y * factor; const cr = safeAlvo.r * factor;
 
         ctxHeat.beginPath(); ctxHeat.arc(cx, cy, cr, 0, Math.PI*2);
         ctxHeat.fillStyle = "rgba(0, 255, 136, 0.25)"; ctxHeat.fill();
@@ -402,8 +469,7 @@
         
         mapas.forEach((m2, i) => {
             if(!m2.img) return;
-            const distCentro = Math.hypot(safeAlvo.x - m2.x, safeAlvo.y - m2.y);
-            if(distCentro < 90) {
+            if(Math.hypot(safeAlvo.x - m2.x, safeAlvo.y - m2.y) < 90) {
                 const timeVencedor = document.getElementById(`winner${i}`).value.trim().toUpperCase();
                 if(timeVencedor !== "") {
                     historicoBooyahsCalculado[timeVencedor] = (historicoBooyahsCalculado[timeVencedor] || 0) + 1;
@@ -420,22 +486,16 @@
         }
 
         timesMapeados.forEach((time) => {
-            const tx = time.x / factor;
-            const ty = time.y / factor;
-            const dist = Math.hypot(tx - safeAlvo.x, ty - safeAlvo.y);
-            let probBooyah = 0;
+            const dist = Math.hypot((time.x / factor) - safeAlvo.x, (time.y / factor) - safeAlvo.y);
+            let probBooyah = (dist <= safeAlvo.r) ? (95 - (dist / safeAlvo.r) * 20) : (55 - ((dist - safeAlvo.r) * 0.4));
 
-            if (dist <= safeAlvo.r) { probBooyah = 95 - (dist / safeAlvo.r) * 20; } 
-            else { probBooyah = 55 - ((dist - safeAlvo.r) * 0.4); }
+            let flagTrava = false;
+            if (dist > 220) { probBooyah = Math.min(probBooyah, 12); flagTrava = true; }
 
-            let flagTravaDistancia = false;
-            if (dist > 220) { probBooyah = Math.min(probBooyah, 12); flagTravaDistancia = true; }
-
-            const qtdBooyahsDetectados = historicoBooyahsCalculado[time.nome] || 0;
-
-            if (qtdBooyahsDetectados > 0) {
-                if (flagTravaDistancia) probBooyah = 12 + (qtdBooyahsDetectados * 20); 
-                else probBooyah += (qtdBooyahsDetectados * 20);
+            const qtdBooyahs = historicoBooyahsCalculado[time.nome] || 0;
+            if (qtdBooyahs > 0) {
+                if (flagTrava) probBooyah = 12 + (qtdBooyahs * 20); 
+                else probBooyah += (qtdBooyahs * 20);
             }
 
             probBooyah = Math.max(5, Math.min(99, Math.round(probBooyah)));
@@ -444,7 +504,7 @@
             list.innerHTML += `
                 <li class="booyah-item">
                     <span><b>${time.nome}</b></span>
-                    <span style="font-size: 11px; color: #888;">Detectados ${qtdBooyahsDetectados} Booyahs na Macro-Região</span>
+                    <span style="font-size: 11px; color: #888;">Detectados ${qtdBooyahs} Booyahs na Macro-Região</span>
                     <span style="color: ${badgeColor}; font-weight: bold; font-size: 16px;">${probBooyah}%</span>
                 </li>
             `;
@@ -454,23 +514,14 @@
     function varColor(name) { return name === '--neon-blue' ? '#00d4ff' : '#00ff88'; }
 
     // ==========================================
-    // SISTEMA DE EXPORTAÇÃO E IMPORTAÇÃO DE DADOS JSON
+    // SISTEMA DE EXPORTAÇÃO E IMPORTAÇÃO JSON
     // ==========================================
     function salvarProjeto() {
-        const data = { nomes: [], vencedores: [], mapasData: [], times: timesMapeados };
-        
-        for(let i=0; i<totalMapas; i++) {
-            data.nomes.push(document.getElementById(`name${i}`).value);
-            data.vencedores.push(document.getElementById(`winner${i}`).value);
-            data.mapasData.push({
-                x: mapas[i].x, y: mapas[i].y, r: mapas[i].r, prob: mapas[i].prob, base64: mapas[i].base64
-            });
-        }
-
-        const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+        saveCurrentToWorkspace(); // Força o salvamento da tela antes de exportar
+        const blob = new Blob([JSON.stringify(workspaces)], {type: 'application/json'});
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = 'dados-taticos-lipee.json';
+        link.download = 'projeto-tatico-completo.json';
         link.click();
     }
 
@@ -482,43 +533,28 @@
         reader.onload = (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                timesMapeados = data.times || [];
                 
-                for(let i=0; i<totalMapas; i++) {
-                    document.getElementById(`name${i}`).value = data.nomes[i] || "";
-                    document.getElementById(`winner${i}`).value = data.vencedores[i] || "";
-                    document.getElementById(`prob${i}`).innerText = data.mapasData[i].prob || "0%";
-                    
-                    mapas[i].x = data.mapasData[i].x;
-                    mapas[i].y = data.mapasData[i].y;
-                    mapas[i].r = data.mapasData[i].r;
-                    mapas[i].prob = data.mapasData[i].prob;
-                    mapas[i].base64 = data.mapasData[i].base64;
-
-                    if(mapas[i].base64) {
-                        const img = new Image();
-                        img.onload = () => {
-                            mapas[i].img = img;
-                            if(!mapaBaseTatico) mapaBaseTatico = img;
-                            desenhar(i);
-                        };
-                        img.src = mapas[i].base64;
-                    } else {
-                        mapas[i].img = null;
-                        desenhar(i);
+                // Conversão Automática de Arquivos Antigos para o Formato Novo
+                if (data.mapasData) {
+                    workspaces['BERM'].timesMapeados = data.times || [];
+                    for(let i=0; i<totalMapas; i++) {
+                        workspaces['BERM'].mapas[i].title = data.nomes[i] || "";
+                        workspaces['BERM'].mapas[i].winner = data.vencedores[i] || "";
+                        workspaces['BERM'].mapas[i].x = data.mapasData[i].x;
+                        workspaces['BERM'].mapas[i].y = data.mapasData[i].y;
+                        workspaces['BERM'].mapas[i].r = data.mapasData[i].r;
+                        workspaces['BERM'].mapas[i].prob = data.mapasData[i].prob;
+                        workspaces['BERM'].mapas[i].base64 = data.mapasData[i].base64;
                     }
+                    document.getElementById('workspaceSelect').value = 'BERM';
+                } else {
+                    workspaces = data; // Carrega dados de novo formato (Multimapas)
                 }
 
-                // Reseta a visualização
-                setTimeout(() => {
-                    calcularGeral();
-                    popularDropdownFiltro();
-                    renderizarMapaDeCalls();
-                    alert("Dados carregados com sucesso!");
-                }, 500);
-
+                changeWorkspace(); // Força a tela a ler o novo workspace
+                alert("Dados táticos importados com sucesso!");
             } catch(error) {
-                alert("Erro ao carregar o arquivo. Verifique se é um projeto válido (.json).");
+                alert("Erro ao carregar. O arquivo pode estar corrompido ou ser inválido.");
             }
         };
         reader.readAsText(file);
@@ -528,12 +564,9 @@
         calcularGeral(); 
         const totalCols = 4;
         const rows = Math.ceil(totalMapas / totalCols);
-        const cardW = 400;
-        const cardH = 470;
-
+        const cardW = 400; const cardH = 470;
         const masterCanvas = document.createElement('canvas');
-        masterCanvas.width = totalCols * cardW;
-        masterCanvas.height = rows * cardH;
+        masterCanvas.width = totalCols * cardW; masterCanvas.height = rows * cardH;
         const ctx = masterCanvas.getContext('2d');
 
         ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, masterCanvas.width, masterCanvas.height);
@@ -556,7 +589,7 @@
         }
 
         const link = document.createElement('a');
-        link.download = 'relatorio-tatico-ffws.png';
+        link.download = `relatorio-tatico-${activeWorkspace}.png`;
         link.href = masterCanvas.toDataURL();
         link.click();
     }
